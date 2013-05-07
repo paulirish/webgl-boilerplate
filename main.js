@@ -192,19 +192,6 @@ function animate() {
 }
 
 function render() {
-
-    if (!currentProgram) {
-        return;
-    }
-
-    parameters.time = new Date().getTime() - parameters.start_time;
-
-    // Load program into GPU
-
-    gl.useProgram(currentProgram);
-
-    // Set values to program variables
-
     function makePerspective(fovy, aspect, znear, zfar) {
         function makeFrustum(left, right, bot, top, near, far) {
             return [
@@ -223,12 +210,24 @@ function render() {
         return makeFrustum(xmin, xmax, ymin, ymax, znear, zfar);
     }
 
-    var p = new Float32Array(makePerspective(45, 4 / 3, 0.1, 100.0));
-    gl.uniformMatrix4fv(gl.getUniformLocation(currentProgram, 'p'), false, p);
-
     function uniform(name, matrix) {
         gl.uniformMatrix4fv(gl.getUniformLocation(currentProgram, name), false, new Float32Array(matrix));
     }
+
+    if (!currentProgram) {
+        return;
+    }
+
+    parameters.time = new Date().getTime() - parameters.start_time;
+
+    // Load program into GPU
+
+    gl.useProgram(currentProgram);
+
+    // Set values to program variables
+
+    var p = new Float32Array(makePerspective(45, 4 / 3, 0.1, 100.0));
+    gl.uniformMatrix4fv(gl.getUniformLocation(currentProgram, 'p'), false, p);
 
     var m = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, -6, 1];
     uniform('m', m);
