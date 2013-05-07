@@ -70,7 +70,9 @@ animate();
 
 function init() {
 
-    vertex_shader = "attribute vec3 position; void main() { gl_Position = vec4( position, 1.0 ); }";
+    vertex_shader = "attribute vec3 position; " +
+        'uniform highp mat4 n,m,p;' +
+        "void main() { gl_Position = p*m*vec4( position, 1.0 ); }";
     fragment_shader = "uniform float time; uniform vec2 resolution; " +
         "void main( void ) { " +
         "vec2 position = - 1.0 + 2.0 * gl_FragCoord.xy / resolution.xy; " +
@@ -202,6 +204,34 @@ function render() {
     gl.useProgram(currentProgram);
 
     // Set values to program variables
+
+    function makePerspective(fovy, aspect, znear, zfar) {
+        function makeFrustum(left, right, bot, top, near, far) {
+            return [
+                2 * near / (right - left), 0, 0, 0,
+                0, 2 * near / (top - bot), 0, 0,
+                (right + left) / (right - left), (top + bot) / (top - bot), (near + far) / (near - far), -1,
+                0, 0, 2 * far * near / (near - far), 0
+            ];
+        }
+
+        var ymax = znear * Math.tan(fovy * Math.PI / 360.0);
+        var ymin = -ymax;
+        var xmin = ymin * aspect;
+        var xmax = ymax * aspect;
+
+        return makeFrustum(xmin, xmax, ymin, ymax, znear, zfar);
+    }
+
+    var p = new Float32Array(makePerspective(45, 4 / 3, 0.1, 100.0));
+    gl.uniformMatrix4fv(gl.getUniformLocation(currentProgram, 'p'), false, p);
+
+    function uniform(name, matrix) {
+        gl.uniformMatrix4fv(gl.getUniformLocation(currentProgram, name), false, new Float32Array(matrix));
+    }
+
+    var m = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, -6, 1];
+    uniform('m', m);
 
     gl.uniform1f(gl.getUniformLocation(currentProgram, 'time'), parameters.time / 1000);
     gl.uniform2f(gl.getUniformLocation(currentProgram, 'resolution'), parameters.screenWidth, parameters.screenHeight);
