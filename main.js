@@ -31,8 +31,8 @@ animate();
 
 function init() {
 
-    vertex_shader = document.getElementById('vs').textContent;
-    fragment_shader = document.getElementById('fs').textContent;
+    vertex_shader = "attribute vec3 position; void main() { gl_Position = vec4( position, 1.0 ); }";
+    fragment_shader = "uniform float time; uniform vec2 resolution; void main( void ) { vec2 position = - 1.0 + 2.0 * gl_FragCoord.xy / resolution.xy; float red = abs( sin( position.x * position.y + time / 5.0 ) ); float green = abs( sin( position.x * position.y + time / 4.0 ) ); float blue = abs( sin( position.x * position.y + time / 3.0 ) ); gl_FragColor = vec4( red, green, blue, 1.0 ); }";
 
 
     canvas = document.querySelector('canvas');
@@ -57,7 +57,9 @@ function init() {
 
     buffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([ -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0 ]), gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER,
+        new Float32Array([ -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0 ]),
+        gl.STATIC_DRAW);
 
     // Create Program
 

@@ -18,35 +18,6 @@
 		<canvas></canvas>
 		<div id="info"></div>
 
-		<script id="vs" type="x-shader/vertex">
-
-			attribute vec3 position;
-
-			void main() {
-
-				gl_Position = vec4( position, 1.0 );
-
-			}
-
-		</script>
-
-		<script id="fs" type="x-shader/fragment">
-
-			uniform float time;
-			uniform vec2 resolution;
-
-			void main( void ) {
-
-				vec2 position = - 1.0 + 2.0 * gl_FragCoord.xy / resolution.xy;
-				float red = abs( sin( position.x * position.y + time / 5.0 ) );
-				float green = abs( sin( position.x * position.y + time / 4.0 ) );
-				float blue = abs( sin( position.x * position.y + time / 3.0 ) );
-				gl_FragColor = vec4( red, green, blue, 1.0 );
-
-			}
-
-		</script>
-
 		<script src="main.js"></script>
 
 	</body>
