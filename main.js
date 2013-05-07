@@ -14,6 +14,45 @@ window.requestAnimationFrame = window.requestAnimationFrame || (function () {
 
 })();
 
+function getVertices() {
+    var lbf = [-1, -1, 1];
+    var rbf = [1, -1, 1];
+    var rtf = [1, 1, 1];
+    var ltf = [-1, 1, 1];
+    var lbb = [-1, -1, -1];
+    var rbb = [1, -1, -1];
+    var rtb = [1, 1, -1];
+    var ltb = [-1, 1, -1];
+    var cube = [
+        lbf, rbf, rtf, ltf,
+        lbb, ltb, rtb, rbb,
+        ltb, ltf, rtf, rtb,
+        lbb, rbb, rbf, lbf,
+        rbb, rtb, rtf, rbf,
+        lbb, lbf, ltf, ltb
+    ];
+
+    var flat = [];
+    for (var i = 0; i < cube.length; i++) {
+        for (var j = 0; j < cube[i].length; j++) {
+            flat.push(cube[i][j]);
+        }
+    }
+    return flat;
+}
+
+function getVertexIndices() {
+    var face = [ 0, 1, 2, 0, 2, 3 ];
+    var flat = [];
+    for (var i = 0; i < 6; i++) {
+        for (var j = 0; j < face.length; j++) {
+            flat.push(4 * i + face[j]);
+        }
+    }
+    return flat;
+}
+
+var vertexIndices = getVertexIndices();
 
 var canvas,
     gl,
@@ -32,7 +71,13 @@ animate();
 function init() {
 
     vertex_shader = "attribute vec3 position; void main() { gl_Position = vec4( position, 1.0 ); }";
-    fragment_shader = "uniform float time; uniform vec2 resolution; void main( void ) { vec2 position = - 1.0 + 2.0 * gl_FragCoord.xy / resolution.xy; float red = abs( sin( position.x * position.y + time / 5.0 ) ); float green = abs( sin( position.x * position.y + time / 4.0 ) ); float blue = abs( sin( position.x * position.y + time / 3.0 ) ); gl_FragColor = vec4( red, green, blue, 1.0 ); }";
+    fragment_shader = "uniform float time; uniform vec2 resolution; " +
+        "void main( void ) { " +
+        "vec2 position = - 1.0 + 2.0 * gl_FragCoord.xy / resolution.xy; " +
+        "float red = abs( sin( position.x * position.y + time / 5.0 ) ); " +
+        "float green = abs( sin( position.x * position.y + time / 4.0 ) ); " +
+        "float blue = abs( sin( position.x * position.y + time / 3.0 ) ); " +
+        "gl_FragColor = vec4( red, green, blue, 1.0 ); }";
 
 
     canvas = document.querySelector('canvas');
@@ -58,10 +103,12 @@ function init() {
     buffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER,
-        new Float32Array([ -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0 ]),
+        new Float32Array(getVertices()),
         gl.STATIC_DRAW);
 
     // Create Program
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(vertexIndices), gl.STATIC_DRAW);
 
     currentProgram = createProgram(vertex_shader, fragment_shader);
 
@@ -164,7 +211,7 @@ function render() {
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.vertexAttribPointer(vertex_position, 2, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(vertex_position);
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    gl.drawElements(gl.TRIANGLES, vertexIndices.length, gl.UNSIGNED_SHORT, 0);
     gl.disableVertexAttribArray(vertex_position);
 
 }
