@@ -192,6 +192,60 @@ function animate() {
 }
 
 function render() {
+    function mvRotate(angle) {
+        function rotation(angle) {
+            function dotProduct(vector) {
+                var dot = 0;
+                for (var i = 0; i < vector.length; i++) {
+                    dot += vector[i] * vector[i];
+                }
+                return dot;
+            }
+
+            var axis = [1, 0, 1];
+            var mod = Math.sqrt(dotProduct(axis));
+            var e0 = axis[0] / mod, e1 = axis[1] / mod, e2 = axis[2] / mod;
+            var sn = Math.sin(angle), cs = Math.cos(angle), tn = 1 - cs;
+
+            function pcs(e) {
+                return tn * e * e + cs;
+            }
+
+            function s(e0, e1, e2) {
+                return tn * e0 * e1 + sn * e2;
+            }
+
+            return [
+                pcs(e0), s(e0, e1, e2), s(e0, e2, -e1), 0,
+                s(e0, e1, -e2), pcs(e1), s(e1, e2, e0), 0,
+                s(e0, e2, e1), s(e1, e2, -e0), pcs(e2), 0,
+                0, 0, 0, 1
+            ];
+        }
+
+        return multMatrix([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, -6, 1], rotation(angle));
+    }
+
+    function multMatrix(left, right) {
+        function get(target, i, j) {
+            return target[i + 4 * j];
+        }
+
+        function getSum(left, i, right, j) {
+            var sum = 0;
+            for (var n = 0; n < 4; n++) {
+                sum += get(left, i, n) * get(right, n, j);
+            }
+            return sum;
+        }
+
+        var multiplied = [];
+        for (var i = 0; i < 16; i++) {
+            multiplied.push(getSum(left, i % 4, right, (i - i % 4) / 4));
+        }
+        return multiplied;
+    }
+
     function makePerspective(fovy, aspect, znear, zfar) {
         function makeFrustum(left, right, bot, top, near, far) {
             return [
@@ -229,7 +283,7 @@ function render() {
     var p = new Float32Array(makePerspective(45, 4 / 3, 0.1, 100.0));
     gl.uniformMatrix4fv(gl.getUniformLocation(currentProgram, 'p'), false, p);
 
-    var m = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, -6, 1];
+    var m = mvRotate(Math.PI * ((new Date()).getTime() % 12000) / 6000);
     uniform('m', m);
 
     gl.uniform1f(gl.getUniformLocation(currentProgram, 'time'), parameters.time / 1000);
@@ -238,7 +292,7 @@ function render() {
     // Render geometry
 
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.vertexAttribPointer(vertex_position, 2, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribPointer(vertex_position, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(vertex_position);
     gl.drawElements(gl.TRIANGLES, vertexIndices.length, gl.UNSIGNED_SHORT, 0);
     gl.disableVertexAttribArray(vertex_position);
