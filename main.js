@@ -14,52 +14,13 @@ window.requestAnimationFrame = window.requestAnimationFrame || (function () {
 
 })();
 
-function getVertices() {
-    var lbf = [-1, -1, 1];
-    var rbf = [1, -1, 1];
-    var rtf = [1, 1, 1];
-    var ltf = [-1, 1, 1];
-    var lbb = [-1, -1, -1];
-    var rbb = [1, -1, -1];
-    var rtb = [1, 1, -1];
-    var ltb = [-1, 1, -1];
-    var cube = [
-        lbf, rbf, rtf, ltf,
-        lbb, ltb, rtb, rbb,
-        ltb, ltf, rtf, rtb,
-        lbb, rbb, rbf, lbf,
-        rbb, rtb, rtf, rbf,
-        lbb, lbf, ltf, ltb
-    ];
-
-    var flat = [];
-    for (var i = 0; i < cube.length; i++) {
-        for (var j = 0; j < cube[i].length; j++) {
-            flat.push(cube[i][j]);
-        }
-    }
-    return flat;
-}
-
-function getVertexIndices() {
-    var face = [ 0, 1, 2, 0, 2, 3 ];
-    var flat = [];
-    for (var i = 0; i < 6; i++) {
-        for (var j = 0; j < face.length; j++) {
-            flat.push(4 * i + face[j]);
-        }
-    }
-    return flat;
-}
-
-var vertexIndices = getVertexIndices();
-
 var canvas,
     gl,
     buffer,
     vertex_shader, fragment_shader,
     currentProgram,
     vertex_position,
+    vertexIndices,
     parameters = {  start_time: new Date().getTime(),
         time: 0,
         screenWidth: 0,
@@ -70,16 +31,8 @@ animate();
 
 function init() {
 
-    vertex_shader = "attribute vec3 position; " +
-        'uniform highp mat4 n,m,p;' +
-        "void main() { gl_Position = p*m*vec4( position, 1.0 ); }";
-    fragment_shader = "uniform float time; uniform vec2 resolution; " +
-        "void main( void ) { " +
-        "vec2 position = - 1.0 + 2.0 * gl_FragCoord.xy / resolution.xy; " +
-        "float red = abs( sin( position.x * position.y + time / 5.0 ) ); " +
-        "float green = abs( sin( position.x * position.y + time / 4.0 ) ); " +
-        "float blue = abs( sin( position.x * position.y + time / 3.0 ) ); " +
-        "gl_FragColor = vec4( red, green, blue, 1.0 ); }";
+    vertex_shader = document.getElementById('vs').textContent;
+    fragment_shader = document.getElementById('fs').textContent;
 
 
     canvas = document.querySelector('canvas');
@@ -108,15 +61,53 @@ function init() {
         new Float32Array(getVertices()),
         gl.STATIC_DRAW);
 
-    // Create Program
+    vertexIndices = getVertexIndices();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(vertexIndices), gl.STATIC_DRAW);
 
+    // Create Program
     currentProgram = createProgram(vertex_shader, fragment_shader);
 
     onWindowResize();
     window.addEventListener('resize', onWindowResize, false);
 
+    function getVertices() {
+        var lbf = [-1, -1, 1];
+        var rbf = [1, -1, 1];
+        var rtf = [1, 1, 1];
+        var ltf = [-1, 1, 1];
+        var lbb = [-1, -1, -1];
+        var rbb = [1, -1, -1];
+        var rtb = [1, 1, -1];
+        var ltb = [-1, 1, -1];
+        var cube = [
+            lbf, rbf, rtf, ltf,
+            lbb, ltb, rtb, rbb,
+            ltb, ltf, rtf, rtb,
+            lbb, rbb, rbf, lbf,
+            rbb, rtb, rtf, rbf,
+            lbb, lbf, ltf, ltb
+        ];
+
+        var flat = [];
+        for (var i = 0; i < cube.length; i++) {
+            for (var j = 0; j < cube[i].length; j++) {
+                flat.push(cube[i][j]);
+            }
+        }
+        return flat;
+    }
+
+    function getVertexIndices() {
+        var face = [ 0, 1, 2, 0, 2, 3 ];
+        var flat = [];
+        for (var i = 0; i < 6; i++) {
+            for (var j = 0; j < face.length; j++) {
+                flat.push(4 * i + face[j]);
+            }
+        }
+        return flat;
+    }
 }
 
 function createProgram(vertex, fragment) {
@@ -192,38 +183,85 @@ function animate() {
 }
 
 function render() {
+    if (!currentProgram) {
+        return;
+    }
+
+    parameters.time = new Date().getTime() - parameters.start_time;
+
+    // Load program into GPU
+
+    gl.useProgram(currentProgram);
+
+    // Set values to program variables
+
+    var p = new Float32Array(makePerspective(45, parameters.screenWidth / parameters.screenHeight, 0.1, 100.0));
+    gl.uniformMatrix4fv(gl.getUniformLocation(currentProgram, 'p'), false, p);
+
+    var m = mvRotate(Math.PI * ((new Date()).getTime() % 12000) / 6000);
+    gl.uniformMatrix4fv(gl.getUniformLocation(currentProgram, 'm'), false, new Float32Array(m));
+
+    gl.uniform1f(gl.getUniformLocation(currentProgram, 'time'), parameters.time / 1000);
+    gl.uniform2f(gl.getUniformLocation(currentProgram, 'resolution'), parameters.screenWidth, parameters.screenHeight);
+
+    // Render geometry
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.vertexAttribPointer(vertex_position, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(vertex_position);
+    gl.drawElements(gl.TRIANGLES, vertexIndices.length, gl.UNSIGNED_SHORT, 0);
+    gl.disableVertexAttribArray(vertex_position);
+
+    function makePerspective(fovy, aspect, znear, zfar) {
+        var ymax = znear * Math.tan(fovy * Math.PI / 360.0);
+        var ymin = -ymax;
+        var xmin = ymin * aspect;
+        var xmax = ymax * aspect;
+
+        return makeFrustum(xmin, xmax, ymin, ymax, znear, zfar);
+    }
+
+    function makeFrustum(left, right, bot, top, near, far) {
+        return [
+            2 * near / (right - left), 0, 0, 0,
+            0, 2 * near / (top - bot), 0, 0,
+            (right + left) / (right - left), (top + bot) / (top - bot), (near + far) / (near - far), -1,
+            0, 0, 2 * far * near / (near - far), 0
+        ];
+    }
+
     function mvRotate(angle) {
-        function rotation(angle) {
-            function dotProduct(vector) {
-                var dot = 0;
-                for (var i = 0; i < vector.length; i++) {
-                    dot += vector[i] * vector[i];
-                }
-                return dot;
-            }
+        return multMatrix([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, -6, 1], rotation(angle));
+    }
 
-            var axis = [1, 0, 1];
-            var mod = Math.sqrt(dotProduct(axis));
-            var e0 = axis[0] / mod, e1 = axis[1] / mod, e2 = axis[2] / mod;
-            var sn = Math.sin(angle), cs = Math.cos(angle), tn = 1 - cs;
+    function rotation(angle) {
+        var axis = [1, 0, 1];
+        var mod = Math.sqrt(dotProduct(axis));
+        var e0 = axis[0] / mod, e1 = axis[1] / mod, e2 = axis[2] / mod;
+        var sn = Math.sin(angle), cs = Math.cos(angle), tn = 1 - cs;
 
-            function pcs(e) {
-                return tn * e * e + cs;
-            }
-
-            function s(e0, e1, e2) {
-                return tn * e0 * e1 + sn * e2;
-            }
-
-            return [
-                pcs(e0), s(e0, e1, e2), s(e0, e2, -e1), 0,
-                s(e0, e1, -e2), pcs(e1), s(e1, e2, e0), 0,
-                s(e0, e2, e1), s(e1, e2, -e0), pcs(e2), 0,
-                0, 0, 0, 1
-            ];
+        function pcs(e) {
+            return tn * e * e + cs;
         }
 
-        return multMatrix([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, -6, 1], rotation(angle));
+        function s(e0, e1, e2) {
+            return tn * e0 * e1 + sn * e2;
+        }
+
+        return [
+            pcs(e0), s(e0, e1, e2), s(e0, e2, -e1), 0,
+            s(e0, e1, -e2), pcs(e1), s(e1, e2, e0), 0,
+            s(e0, e2, e1), s(e1, e2, -e0), pcs(e2), 0,
+            0, 0, 0, 1
+        ];
+    }
+
+    function dotProduct(vector) {
+        var dot = 0;
+        for (var i = 0; i < vector.length; i++) {
+            dot += vector[i] * vector[i];
+        }
+        return dot;
     }
 
     function multMatrix(left, right) {
@@ -245,56 +283,4 @@ function render() {
         }
         return multiplied;
     }
-
-    function makePerspective(fovy, aspect, znear, zfar) {
-        function makeFrustum(left, right, bot, top, near, far) {
-            return [
-                2 * near / (right - left), 0, 0, 0,
-                0, 2 * near / (top - bot), 0, 0,
-                (right + left) / (right - left), (top + bot) / (top - bot), (near + far) / (near - far), -1,
-                0, 0, 2 * far * near / (near - far), 0
-            ];
-        }
-
-        var ymax = znear * Math.tan(fovy * Math.PI / 360.0);
-        var ymin = -ymax;
-        var xmin = ymin * aspect;
-        var xmax = ymax * aspect;
-
-        return makeFrustum(xmin, xmax, ymin, ymax, znear, zfar);
-    }
-
-    function uniform(name, matrix) {
-        gl.uniformMatrix4fv(gl.getUniformLocation(currentProgram, name), false, new Float32Array(matrix));
-    }
-
-    if (!currentProgram) {
-        return;
-    }
-
-    parameters.time = new Date().getTime() - parameters.start_time;
-
-    // Load program into GPU
-
-    gl.useProgram(currentProgram);
-
-    // Set values to program variables
-
-    var p = new Float32Array(makePerspective(45, parameters.screenWidth / parameters.screenHeight, 0.1, 100.0));
-    gl.uniformMatrix4fv(gl.getUniformLocation(currentProgram, 'p'), false, p);
-
-    var m = mvRotate(Math.PI * ((new Date()).getTime() % 12000) / 6000);
-    uniform('m', m);
-
-    gl.uniform1f(gl.getUniformLocation(currentProgram, 'time'), parameters.time / 1000);
-    gl.uniform2f(gl.getUniformLocation(currentProgram, 'resolution'), parameters.screenWidth, parameters.screenHeight);
-
-    // Render geometry
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.vertexAttribPointer(vertex_position, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vertex_position);
-    gl.drawElements(gl.TRIANGLES, vertexIndices.length, gl.UNSIGNED_SHORT, 0);
-    gl.disableVertexAttribArray(vertex_position);
-
 }
