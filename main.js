@@ -280,7 +280,7 @@ function render() {
 
     // Set values to program variables
 
-    var p = new Float32Array(makePerspective(45, 4 / 3, 0.1, 100.0));
+    var p = new Float32Array(makePerspective(45, parameters.screenWidth / parameters.screenHeight, 0.1, 100.0));
     gl.uniformMatrix4fv(gl.getUniformLocation(currentProgram, 'p'), false, p);
 
     var m = mvRotate(Math.PI * ((new Date()).getTime() % 12000) / 6000);
