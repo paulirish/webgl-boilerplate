@@ -1,56 +1,13 @@
 <!DOCTYPE HTML>
 <html>
-	<head>
-		<meta charset="utf-8">
-		<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-		<title>WebGL Boilerplate</title>
-
-		<style>
-			body {
-				background-color: #000000;
-				margin: 0;
-				overflow: hidden;
-			}
-		</style>
-	</head>
-	<body>
-
-		<canvas></canvas>
-		<div id="info"></div>
-        "attribute vec3 position; " +
-        '' +
-        "void main() { gl_Position = p*m*vec4( position, 1.0 ); }"
-		<script id="vs" type="x-shader/vertex">
-
-			attribute vec3 position;
-            uniform highp mat4 n,m,p;
-
-			void main() {
-
-				gl_Position = p * m * vec4( position, 1.0 );
-
-			}
-
-		</script>
-
-		<script id="fs" type="x-shader/fragment">
-
-			uniform float time;
-			uniform vec2 resolution;
-
-			void main( void ) {
-
-				vec2 position = - 1.0 + 2.0 * gl_FragCoord.xy / resolution.xy;
-				float red = abs( sin( position.x * position.y + time / 5.0 ) );
-				float green = abs( sin( position.x * position.y + time / 4.0 ) );
-				float blue = abs( sin( position.x * position.y + time / 3.0 ) );
-				gl_FragColor = vec4( red, green, blue, 1.0 );
-
-			}
-
-		</script>
-
-		<script src="main.js"></script>
-
-	</body>
+<head>
+    <meta charset="utf-8">
+    <title>WebGL Boilerplate</title>
+    <link rel="stylesheet" type="text/css" href="main.css"/>
+</head>
+<body>
+<canvas></canvas>
+<div id="info"></div>
+<script src="main.js"></script>
+</body>
 </html>
