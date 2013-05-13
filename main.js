@@ -3,7 +3,6 @@
  * paulirish.com/2011/requestanimationframe-for-smart-animating/
  */
 window.requestAnimationFrame = window.requestAnimationFrame || (function () {
-
     return  window.webkitRequestAnimationFrame ||
         window.mozRequestAnimationFrame ||
         window.oRequestAnimationFrame ||
@@ -11,7 +10,6 @@ window.requestAnimationFrame = window.requestAnimationFrame || (function () {
         function (callback) {
             window.setTimeout(callback, 1000 / 60);
         };
-
 })();
 
 function transpose(matrix) {
@@ -95,13 +93,10 @@ var invert = (function () {
 })();
 
 var gl,
-    pos, norm,
-    currentProgram,
+    vertices, normals,
+    program,
     vertexIndices,
-    parameters = {  start_time: new Date().getTime(),
-        time: 0,
-        screenWidth: 0,
-        screenHeight: 0 };
+    parameters = { screenWidth: 0, screenHeight: 0 };
 
 init();
 animate();
@@ -138,19 +133,19 @@ function init() {
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
 
-    pos = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, pos);
+    vertices = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertices);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(getVertices()), gl.STATIC_DRAW);
 
-    norm = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, norm);
+    normals = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, normals);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(getNormals()), gl.STATIC_DRAW);
 
     vertexIndices = getVertexIndices();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(vertexIndices), gl.STATIC_DRAW);
 
-    currentProgram = createProgram(vertex_shader, fragment_shader);
+    program = createProgram(vertex_shader, fragment_shader);
 
     onWindowResize();
     window.addEventListener('resize', onWindowResize, false);
@@ -225,7 +220,6 @@ function init() {
 }
 
 function createProgram(vertex, fragment) {
-
     var program = gl.createProgram();
 
     var vs = createShader(vertex, gl.VERTEX_SHADER);
@@ -256,70 +250,55 @@ function createProgram(vertex, fragment) {
     }
 
     return program;
-
 }
 
 function createShader(src, type) {
-
     var shader = gl.createShader(type);
 
     gl.shaderSource(shader, src);
     gl.compileShader(shader);
 
     if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-
         alert(( type === gl.VERTEX_SHADER ? "VERTEX" : "FRAGMENT" ) + " SHADER:\n" + gl.getShaderInfoLog(shader));
         return null;
-
     }
 
     return shader;
-
 }
 
 function animate() {
-
     window.requestAnimationFrame(animate);
     render();
-
 }
 
 function render() {
-    if (!currentProgram) {
+    if (!program) {
         return;
     }
 
-    parameters.time = new Date().getTime() - parameters.start_time;
-
-    // Load program into GPU
-
-    gl.useProgram(currentProgram);
-
-    // Set values to program variables
+    gl.useProgram(program);
 
     var p = new Float32Array(makePerspective(45, parameters.screenWidth / parameters.screenHeight, 0.1, 100.0));
-    gl.uniformMatrix4fv(gl.getUniformLocation(currentProgram, 'p'), false, p);
+    gl.uniformMatrix4fv(gl.getUniformLocation(program, 'p'), false, p);
 
     var m = mvRotate(Math.PI * ((new Date()).getTime() % 12000) / 6000);
-    gl.uniformMatrix4fv(gl.getUniformLocation(currentProgram, 'm'), false, new Float32Array(m));
+    gl.uniformMatrix4fv(gl.getUniformLocation(program, 'm'), false, new Float32Array(m));
 
     var n = transpose(invert(m));
-    gl.uniformMatrix4fv(gl.getUniformLocation(currentProgram, 'n'), false, new Float32Array(n));
+    gl.uniformMatrix4fv(gl.getUniformLocation(program, 'n'), false, new Float32Array(n));
 
-    gl.uniform1f(gl.getUniformLocation(currentProgram, 'time'), parameters.time / 1000);
-    gl.uniform2f(gl.getUniformLocation(currentProgram, 'resolution'), parameters.screenWidth, parameters.screenHeight);
+    gl.uniform1f(gl.getUniformLocation(program, 'time'), parameters.time / 1000);
+    gl.uniform2f(gl.getUniformLocation(program, 'resolution'), parameters.screenWidth, parameters.screenHeight);
 
-    // Render geometry
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertices);
+    var loc = gl.getAttribLocation(program, 'pos');
+    gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(loc);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, pos);
-    var vertex_position = gl.getAttribLocation(currentProgram, 'pos');
-    gl.vertexAttribPointer(vertex_position, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vertex_position);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, norm);
-    var vertex_normal = gl.getAttribLocation(currentProgram, 'norm');
-    gl.vertexAttribPointer(vertex_normal, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vertex_normal);
+    gl.bindBuffer(gl.ARRAY_BUFFER, normals);
+    loc = gl.getAttribLocation(program, 'norm');
+    gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(loc);
 
     gl.drawElements(gl.TRIANGLES, vertexIndices.length, gl.UNSIGNED_SHORT, 0);
 
