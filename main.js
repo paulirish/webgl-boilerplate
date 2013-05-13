@@ -56,59 +56,53 @@ var invert = (function () {
     }
 
     return function (matrix) {
-        function cramer(mat) {
-            function cofactors(src, i) {
-                function cofactor(j) {
-                    return src[i[j[0]]] * src[i[j[1]]] * src[i[j[2]]];
-                }
-
-                return cofactor([0, 4, 8]) + cofactor([1, 5, 6]) + cofactor([2, 3, 7]) -
-                    cofactor([0, 5, 7]) - cofactor([1, 3, 8]) - cofactor([2, 4, 6]);
+        function cofactors(src, i) {
+            function cofactor(j) {
+                return src[i[j[0]]] * src[i[j[1]]] * src[i[j[2]]];
             }
 
-            function adjoint(n) {
-                return sign[n] * cofactors(src, indices[n]);
-            }
-
-            var src = transpose(mat);
-            var dst = [];
-            for (var i = 0; i < 16; i++) {
-                dst.push(adjoint(i));
-            }
-
-            var determinant = 0;
-            for (i = 0; i < 4; i++) {
-                determinant += src[i] * dst[i];
-            }
-
-            for (i = 0; i < 16; i++) {
-                dst[i] /= determinant;
-            }
-
-            return dst;
+            return cofactor([0, 4, 8]) + cofactor([1, 5, 6]) + cofactor([2, 3, 7]) -
+                cofactor([0, 5, 7]) - cofactor([1, 3, 8]) - cofactor([2, 4, 6]);
         }
 
-        return cramer(matrix);
+        function adjoint(n) {
+            return sign[n] * cofactors(src, indices[n]);
+        }
+
+        var src = transpose(matrix);
+        var dst = [];
+        for (var i = 0; i < 16; i++) {
+            dst.push(adjoint(i));
+        }
+
+        var determinant = 0;
+        for (i = 0; i < 4; i++) {
+            determinant += src[i] * dst[i];
+        }
+
+        for (i = 0; i < 16; i++) {
+            dst[i] /= determinant;
+        }
+
+        return dst;
     };
 })();
 
-var gl,
-    vertices, normals,
-    program,
-    vertexIndices,
-    parameters = { screenWidth: 0, screenHeight: 0 };
+var gl, program,
+    vertices, normals, vertexIndices,
+    screenWidth, screenHeight;
 
 init();
 animate();
 
 function init() {
-    var vertex_shader = "attribute highp vec3 norm,pos; " +
+    var vertex_shader = "attribute highp vec3 normals,vertices; " +
         'varying highp vec3 l;' +
         'uniform highp mat4 n,m,p;' +
         "void main() {" +
-        "  gl_Position = p*m*vec4( pos, 1.0 );" +
+        "  gl_Position = p*m*vec4( vertices, 1.0 );" +
         '  l=vec3(0.6,0.6,0.6)+' +
-        '  (vec3(0.5,0.5,0.75)*max(dot((n*vec4(norm,1.0)).xyz,vec3(0.85,0.8,0.75)),0.0));' +
+        '  (vec3(0.5,0.5,0.75)*max(dot((n*vec4(normals,1.0)).xyz,vec3(0.85,0.8,0.75)),0.0));' +
         "}";
 
     var fragment_shader = 'varying highp vec3 l;' +
@@ -154,8 +148,8 @@ function init() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
-        parameters.screenWidth = canvas.width;
-        parameters.screenHeight = canvas.height;
+        screenWidth = canvas.width;
+        screenHeight = canvas.height;
 
         gl.viewport(0, 0, canvas.width, canvas.height);
     }
@@ -217,53 +211,53 @@ function init() {
         }
         return flat;
     }
-}
 
-function createProgram(vertex, fragment) {
-    var program = gl.createProgram();
+    function createProgram(vertex, fragment) {
+        var program = gl.createProgram();
 
-    var vs = createShader(vertex, gl.VERTEX_SHADER);
-    var fs = createShader('#ifdef GL_ES\nprecision highp float;\n#endif\n\n' + fragment, gl.FRAGMENT_SHADER);
+        var vs = createShader(vertex, gl.VERTEX_SHADER);
+        var fs = createShader('#ifdef GL_ES\nprecision highp float;\n#endif\n\n' + fragment, gl.FRAGMENT_SHADER);
 
-    if (vs === null || fs === null) {
-        return null;
+        if (vs === null || fs === null) {
+            return null;
+        }
+
+        gl.attachShader(program, vs);
+        gl.attachShader(program, fs);
+
+        gl.deleteShader(vs);
+        gl.deleteShader(fs);
+
+        gl.linkProgram(program);
+
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+
+            alert("ERROR:\n" +
+                "VALIDATE_STATUS: " + gl.getProgramParameter(program, gl.VALIDATE_STATUS) + "\n" +
+                "ERROR: " + gl.getError() + "\n\n" +
+                "- Vertex Shader -\n" + vertex + "\n\n" +
+                "- Fragment Shader -\n" + fragment);
+
+            return null;
+
+        }
+
+        return program;
     }
 
-    gl.attachShader(program, vs);
-    gl.attachShader(program, fs);
+    function createShader(src, type) {
+        var shader = gl.createShader(type);
 
-    gl.deleteShader(vs);
-    gl.deleteShader(fs);
+        gl.shaderSource(shader, src);
+        gl.compileShader(shader);
 
-    gl.linkProgram(program);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            alert(( type === gl.VERTEX_SHADER ? "VERTEX" : "FRAGMENT" ) + " SHADER:\n" + gl.getShaderInfoLog(shader));
+            return null;
+        }
 
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-
-        alert("ERROR:\n" +
-            "VALIDATE_STATUS: " + gl.getProgramParameter(program, gl.VALIDATE_STATUS) + "\n" +
-            "ERROR: " + gl.getError() + "\n\n" +
-            "- Vertex Shader -\n" + vertex + "\n\n" +
-            "- Fragment Shader -\n" + fragment);
-
-        return null;
-
+        return shader;
     }
-
-    return program;
-}
-
-function createShader(src, type) {
-    var shader = gl.createShader(type);
-
-    gl.shaderSource(shader, src);
-    gl.compileShader(shader);
-
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-        alert(( type === gl.VERTEX_SHADER ? "VERTEX" : "FRAGMENT" ) + " SHADER:\n" + gl.getShaderInfoLog(shader));
-        return null;
-    }
-
-    return shader;
 }
 
 function animate() {
@@ -278,25 +272,22 @@ function render() {
 
     gl.useProgram(program);
 
-    var p = new Float32Array(makePerspective(45, parameters.screenWidth / parameters.screenHeight, 0.1, 100.0));
+    var p = makePerspective(45, screenWidth / screenHeight, 0.1, 10);
     gl.uniformMatrix4fv(gl.getUniformLocation(program, 'p'), false, p);
 
     var m = mvRotate(Math.PI * ((new Date()).getTime() % 12000) / 6000);
-    gl.uniformMatrix4fv(gl.getUniformLocation(program, 'm'), false, new Float32Array(m));
+    gl.uniformMatrix4fv(gl.getUniformLocation(program, 'm'), false, m);
 
     var n = transpose(invert(m));
-    gl.uniformMatrix4fv(gl.getUniformLocation(program, 'n'), false, new Float32Array(n));
-
-    gl.uniform1f(gl.getUniformLocation(program, 'time'), parameters.time / 1000);
-    gl.uniform2f(gl.getUniformLocation(program, 'resolution'), parameters.screenWidth, parameters.screenHeight);
+    gl.uniformMatrix4fv(gl.getUniformLocation(program, 'n'), false, n);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, vertices);
-    var loc = gl.getAttribLocation(program, 'pos');
+    var loc = gl.getAttribLocation(program, 'vertices');
     gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(loc);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, normals);
-    loc = gl.getAttribLocation(program, 'norm');
+    loc = gl.getAttribLocation(program, 'normals');
     gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(loc);
 
@@ -308,15 +299,11 @@ function render() {
         var xmin = ymin * aspect;
         var xmax = ymax * aspect;
 
-        return makeFrustum(xmin, xmax, ymin, ymax, znear, zfar);
-    }
-
-    function makeFrustum(left, right, bot, top, near, far) {
         return [
-            2 * near / (right - left), 0, 0, 0,
-            0, 2 * near / (top - bot), 0, 0,
-            (right + left) / (right - left), (top + bot) / (top - bot), (near + far) / (near - far), -1,
-            0, 0, 2 * far * near / (near - far), 0
+            2 * znear / (xmax - xmin), 0, 0, 0,
+            0, 2 * znear / (ymax - ymin), 0, 0,
+            (xmax + xmin) / (xmax - xmin), (ymax + ymin) / (ymax - ymin), (znear + zfar) / (znear - zfar), -1,
+            0, 0, 2 * zfar * znear / (znear - zfar), 0
         ];
     }
 
@@ -327,7 +314,9 @@ function render() {
     function rotation(angle) {
         var axis = [1, 0, 1];
         var mod = Math.sqrt(dotProduct(axis));
-        var e0 = axis[0] / mod, e1 = axis[1] / mod, e2 = axis[2] / mod;
+        var e0 = axis[0] / mod;
+        var e1 = axis[1] / mod;
+        var e2 = axis[2] / mod;
         var sn = Math.sin(angle), cs = Math.cos(angle), tn = 1 - cs;
 
         function pcs(e) {
