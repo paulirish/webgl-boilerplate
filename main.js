@@ -14,12 +14,93 @@ window.requestAnimationFrame = window.requestAnimationFrame || (function () {
 
 })();
 
+function transpose(matrix) {
+    var transposed = [];
+    for (var i = 0; i < 16; i++) {
+        var j = i % 4;
+        transposed.push(matrix[(i - j) / 4 + 4 * j]);
+    }
+    return transposed;
+}
+
+var invert = (function () {
+    function getColumn(n) {
+        return n % 4;
+    }
+
+    function getRow(n) {
+        return (n - getColumn(n)) / 4;
+    }
+
+    function getSign(n) {
+        return getRow(n) % 2 === getColumn(n) % 2 ? 1 : -1;
+    }
+
+    function getIndices(n) {
+        function hasSameRowOrColumn(i) {
+            return getColumn(i) === getColumn(n) || getRow(i) === getRow(n);
+        }
+
+        var indices = [];
+        for (var i = 0; i < 16; i++) {
+            if (!hasSameRowOrColumn(i)) {
+                indices.push(i);
+            }
+        }
+        return indices;
+    }
+
+    var indices = [];
+    var sign = [];
+    for (var i = 0; i < 16; i++) {
+        indices.push(getIndices(i));
+        sign.push(getSign(i));
+    }
+
+    return function (matrix) {
+        function cramer(mat) {
+            function cofactors(src, i) {
+                function cofactor(j) {
+                    return src[i[j[0]]] * src[i[j[1]]] * src[i[j[2]]];
+                }
+
+                return cofactor([0, 4, 8]) + cofactor([1, 5, 6]) + cofactor([2, 3, 7]) -
+                    cofactor([0, 5, 7]) - cofactor([1, 3, 8]) - cofactor([2, 4, 6]);
+            }
+
+            function adjoint(n) {
+                return sign[n] * cofactors(src, indices[n]);
+            }
+
+            var src = transpose(mat);
+            var dst = [];
+            for (var i = 0; i < 16; i++) {
+                dst.push(adjoint(i));
+            }
+
+            var determinant = 0;
+            for (i = 0; i < 4; i++) {
+                determinant += src[i] * dst[i];
+            }
+
+            for (i = 0; i < 16; i++) {
+                dst[i] /= determinant;
+            }
+
+            return dst;
+        }
+
+        return cramer(matrix);
+    };
+})();
+
 var canvas,
     gl,
-    buffer,
+    pos, norm,
     vertex_shader, fragment_shader,
     currentProgram,
     vertex_position,
+    vertex_normal,
     vertexIndices,
     parameters = {  start_time: new Date().getTime(),
         time: 0,
@@ -31,16 +112,24 @@ animate();
 
 function init() {
 
-    vertex_shader = "attribute vec3 position; " +
+    vertex_shader = "attribute highp vec3 norm,pos; " +
+        'varying highp vec3 l;' +
         'uniform highp mat4 n,m,p;' +
-        "void main() { gl_Position = p*m*vec4( position, 1.0 ); }";
-    fragment_shader = "uniform float time; uniform vec2 resolution; " +
+        "void main() {" +
+        "  gl_Position = p*m*vec4( pos, 1.0 );" +
+        '  l=vec3(0.6,0.6,0.6)+' +
+        '  (vec3(0.5,0.5,0.75)*max(dot((n*vec4(norm,1.0)).xyz,vec3(0.85,0.8,0.75)),0.0));' +
+        "}";
+    fragment_shader = 'varying highp vec3 l;' +
+        "uniform float time;" +
+        "uniform vec2 resolution; " +
         "void main( void ) { " +
-        "vec2 position = - 1.0 + 2.0 * gl_FragCoord.xy / resolution.xy; " +
-        "float red = abs( sin( position.x * position.y + time / 5.0 ) ); " +
-        "float green = abs( sin( position.x * position.y + time / 4.0 ) ); " +
-        "float blue = abs( sin( position.x * position.y + time / 3.0 ) ); " +
-        "gl_FragColor = vec4( red, green, blue, 1.0 ); }";
+        "  vec2 position = - 1.0 + 2.0 * gl_FragCoord.xy / resolution.xy; " +
+        "  float red = abs( sin( position.x * position.y + time / 5.0 ) ); " +
+        "  float green = abs( sin( position.x * position.y + time / 4.0 ) ); " +
+        "  float blue = abs( sin( position.x * position.y + time / 3.0 ) ); " +
+        "  gl_FragColor = vec4( l, 1.0 );" +
+        "}";
 
 
     canvas = document.querySelector('canvas');
@@ -61,12 +150,19 @@ function init() {
 
     }
 
-    // Create Vertex buffer (2 triangles)
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
 
-    buffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    pos = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, pos);
     gl.bufferData(gl.ARRAY_BUFFER,
         new Float32Array(getVertices()),
+        gl.STATIC_DRAW);
+
+    norm = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, norm);
+    gl.bufferData(gl.ARRAY_BUFFER,
+        new Float32Array(getNormals()),
         gl.STATIC_DRAW);
 
     vertexIndices = getVertexIndices();
@@ -101,6 +197,26 @@ function init() {
         for (var i = 0; i < cube.length; i++) {
             for (var j = 0; j < cube[i].length; j++) {
                 flat.push(cube[i][j]);
+            }
+        }
+        return flat;
+    }
+
+    function getNormals() {
+        var front = [0, 0, 1];
+        var back = [0, 0, -1];
+        var top = [0, 1, 0];
+        var bottom = [0, -1, 0];
+        var right = [1, 0, 0];
+        var left = [-1, 0, 0];
+        var cube = [front, back, top, bottom, right, left];
+
+        var flat = [];
+        for (var i = 0; i < cube.length; i++) {
+            for (var j = 0; j < 4; j++) {
+                for (var k = 0; k < cube[i].length; k++) {
+                    flat.push(cube[i][k]);
+                }
             }
         }
         return flat;
@@ -209,16 +325,25 @@ function render() {
     var m = mvRotate(Math.PI * ((new Date()).getTime() % 12000) / 6000);
     gl.uniformMatrix4fv(gl.getUniformLocation(currentProgram, 'm'), false, new Float32Array(m));
 
+    var n = transpose(invert(m));
+    gl.uniformMatrix4fv(gl.getUniformLocation(currentProgram, 'n'), false, new Float32Array(n));
+
     gl.uniform1f(gl.getUniformLocation(currentProgram, 'time'), parameters.time / 1000);
     gl.uniform2f(gl.getUniformLocation(currentProgram, 'resolution'), parameters.screenWidth, parameters.screenHeight);
 
     // Render geometry
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bindBuffer(gl.ARRAY_BUFFER, pos);
+    vertex_position = gl.getAttribLocation(currentProgram, 'pos');
     gl.vertexAttribPointer(vertex_position, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(vertex_position);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, norm);
+    vertex_normal = gl.getAttribLocation(currentProgram, 'norm');
+    gl.vertexAttribPointer(vertex_normal, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(vertex_normal);
+
     gl.drawElements(gl.TRIANGLES, vertexIndices.length, gl.UNSIGNED_SHORT, 0);
-    gl.disableVertexAttribArray(vertex_position);
 
     function makePerspective(fovy, aspect, znear, zfar) {
         var ymax = znear * Math.tan(fovy * Math.PI / 360.0);
