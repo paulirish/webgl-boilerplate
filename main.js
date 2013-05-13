@@ -94,13 +94,9 @@ var invert = (function () {
     };
 })();
 
-var canvas,
-    gl,
+var gl,
     pos, norm,
-    vertex_shader, fragment_shader,
     currentProgram,
-    vertex_position,
-    vertex_normal,
     vertexIndices,
     parameters = {  start_time: new Date().getTime(),
         time: 0,
@@ -111,8 +107,7 @@ init();
 animate();
 
 function init() {
-
-    vertex_shader = "attribute highp vec3 norm,pos; " +
+    var vertex_shader = "attribute highp vec3 norm,pos; " +
         'varying highp vec3 l;' +
         'uniform highp mat4 n,m,p;' +
         "void main() {" +
@@ -120,7 +115,8 @@ function init() {
         '  l=vec3(0.6,0.6,0.6)+' +
         '  (vec3(0.5,0.5,0.75)*max(dot((n*vec4(norm,1.0)).xyz,vec3(0.85,0.8,0.75)),0.0));' +
         "}";
-    fragment_shader = 'varying highp vec3 l;' +
+
+    var fragment_shader = 'varying highp vec3 l;' +
         "uniform float time;" +
         "uniform vec2 resolution; " +
         "void main( void ) { " +
@@ -131,23 +127,12 @@ function init() {
         "  gl_FragColor = vec4( l, 1.0 );" +
         "}";
 
+    var canvas = document.querySelector('canvas');
 
-    canvas = document.querySelector('canvas');
-
-
-    // Initialise WebGL
-
-    try {
-
-        gl = canvas.getContext('experimental-webgl');
-
-    } catch (error) {
-    }
+    gl = canvas.getContext('experimental-webgl');
 
     if (!gl) {
-
-        throw "cannot create webgl context";
-
+        alert("cannot create webgl context");
     }
 
     gl.enable(gl.DEPTH_TEST);
@@ -155,25 +140,30 @@ function init() {
 
     pos = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, pos);
-    gl.bufferData(gl.ARRAY_BUFFER,
-        new Float32Array(getVertices()),
-        gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(getVertices()), gl.STATIC_DRAW);
 
     norm = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, norm);
-    gl.bufferData(gl.ARRAY_BUFFER,
-        new Float32Array(getNormals()),
-        gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(getNormals()), gl.STATIC_DRAW);
 
     vertexIndices = getVertexIndices();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(vertexIndices), gl.STATIC_DRAW);
 
-    // Create Program
     currentProgram = createProgram(vertex_shader, fragment_shader);
 
     onWindowResize();
     window.addEventListener('resize', onWindowResize, false);
+
+    function onWindowResize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        parameters.screenWidth = canvas.width;
+        parameters.screenHeight = canvas.height;
+
+        gl.viewport(0, 0, canvas.width, canvas.height);
+    }
 
     function getVertices() {
         var lbf = [-1, -1, 1];
@@ -287,18 +277,6 @@ function createShader(src, type) {
 
 }
 
-function onWindowResize() {
-
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    parameters.screenWidth = canvas.width;
-    parameters.screenHeight = canvas.height;
-
-    gl.viewport(0, 0, canvas.width, canvas.height);
-
-}
-
 function animate() {
 
     window.requestAnimationFrame(animate);
@@ -334,12 +312,12 @@ function render() {
     // Render geometry
 
     gl.bindBuffer(gl.ARRAY_BUFFER, pos);
-    vertex_position = gl.getAttribLocation(currentProgram, 'pos');
+    var vertex_position = gl.getAttribLocation(currentProgram, 'pos');
     gl.vertexAttribPointer(vertex_position, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(vertex_position);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, norm);
-    vertex_normal = gl.getAttribLocation(currentProgram, 'norm');
+    var vertex_normal = gl.getAttribLocation(currentProgram, 'norm');
     gl.vertexAttribPointer(vertex_normal, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(vertex_normal);
 
