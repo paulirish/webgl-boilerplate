@@ -6,10 +6,16 @@
 		<title>WebGL Boilerplate</title> 
 		
 		<style> 
-			body {
+			html, body {
 				background-color: #000000;
 				margin: 0px;
 				overflow: hidden;
+				width: 100%;
+				height: 100%;
+			}
+			canvas {
+				width: 100%;
+				height: 100%;
 			}
 		</style> 
 	</head> 
@@ -71,7 +77,9 @@
 			    buffer, 
 			    vertex_shader, fragment_shader, 
 			    currentProgram,
-			    vertex_position, 
+			    vertex_position,
+			    timeLocation,
+			    resolutionLocation,
 			    parameters = {  start_time  : new Date().getTime(), 
 			                    time        : 0, 
 			                    screenWidth : 0, 
@@ -113,9 +121,9 @@
 				// Create Program
  
 				currentProgram = createProgram( vertex_shader, fragment_shader );
- 
-				onWindowResize();
-				window.addEventListener( 'resize', onWindowResize, false );
+
+				timeLocation = gl.getUniformLocation( currentProgram, 'time' );
+				resolutionLocation = gl.getUniformLocation( currentProgram, 'resolution' );
  
 			}
  
@@ -170,22 +178,28 @@
  
 			}
  
-			function onWindowResize( event ) {
+			function resizeCanvas( event ) {
  
-				canvas.width = window.innerWidth;
-				canvas.height = window.innerHeight;
- 
-				parameters.screenWidth = canvas.width;
-				parameters.screenHeight = canvas.height;
- 
-				gl.viewport( 0, 0, canvas.width, canvas.height );
+				if ( canvas.width != canvas.clientWidth ||
+					 canvas.height != canvas.clientHeight ) {
+
+					canvas.width = canvas.clientWidth;
+					canvas.height = canvas.clientHeight;
+
+					parameters.screenWidth = canvas.width;
+					parameters.screenHeight = canvas.height;
+
+					gl.viewport( 0, 0, canvas.width, canvas.height );
+
+				}
  
 			}
  
 			function animate() {
  
-				requestAnimationFrame( animate );
+				resizeCanvas();
 				render();
+				requestAnimationFrame( animate );
  
 			}
  
@@ -203,8 +217,8 @@
  
 				// Set values to program variables
  
-				gl.uniform1f( gl.getUniformLocation( currentProgram, 'time' ), parameters.time / 1000 );
-				gl.uniform2f( gl.getUniformLocation( currentProgram, 'resolution' ), parameters.screenWidth, parameters.screenHeight );
+				gl.uniform1f( timeLocation, parameters.time / 1000 );
+				gl.uniform2f( resolutionLocation, parameters.screenWidth, parameters.screenHeight );
  
 				// Render geometry
  
